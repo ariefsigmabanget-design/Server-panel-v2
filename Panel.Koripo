@@ -1,0 +1,760 @@
+ local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local Debris = game:GetService("Debris")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Configuration Webhooks, Keys & Owner ID
+local OWNER_USER_ID = 11126812631 -- User ID Profil Anda
+local CORRECT_KEY = "Koripp"
+local DISCORD_LINK = "https://discord.gg/UjBDWDFyK"
+local COOLDOWN_TIME = 3000
+local isFeature2Unlocked = false
+
+local EXECUTION_WEBHOOK = "https://discord.com/api/webhooks/1558721068875915386/roAVbTcms-p89rB7JwugL4zeTUnvSNTDaXikru3wCzOYZm4dTu5YvjG-FWlM932d3Gq8"
+local KEY_WEBHOOK = "https://discord.com/api/webhooks/1558720464778698813/ZDiaGRiUZqgbq43VAqmVglLlyrp9iSWLB9KglzkbJ6qaBaHPDJVM9Al9MNRvyy2d13y6"
+local REQUEST_WEBHOOK = "https://discord.com/api/webhooks/1558725535990022255/pXeL7QHgRz3cIyGOGM2IWqgba6wRKkDD3hbU9IqW3VQ_jqcNSk36DmT5ACjKq5lpq4Ll"
+
+----------------------------------------------------
+-- GUI ROOT CONTAINER SETUP
+----------------------------------------------------
+local oldGui = PlayerGui:FindFirstChild("VersmandexGui") or CoreGui:FindFirstChild("VersmandexGui")
+if oldGui then oldGui:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "VersmandexGui"
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = PlayerGui end
+ScreenGui.ResetOnSpawn = false
+
+----------------------------------------------------
+-- BACKGROUND MUSIC SYSTEM (LOOPING TERUS)
+----------------------------------------------------
+local bgmSound = Instance.new("Sound", ScreenGui)
+bgmSound.Name = "VersmandexBGM"
+bgmSound.SoundId = "rbxassetid://75485931767123"
+bgmSound.Volume = 0.8
+bgmSound.Looped = true
+bgmSound:Play()
+
+----------------------------------------------------
+-- SOUND EFFECT KLIK TOMBOL
+----------------------------------------------------
+local function playClickSound()
+    task.spawn(function()
+        pcall(function()
+            local sound = Instance.new("Sound", ScreenGui)
+            sound.SoundId = "rbxassetid://77120543307812"
+            sound.Volume = 1.0
+            sound:Play()
+            Debris:AddItem(sound, 1)
+        end)
+    end)
+end
+
+----------------------------------------------------
+-- TOP CENTER CREDIT HUD (WITH PROFILE AVATAR)
+----------------------------------------------------
+local CreditHUD = Instance.new("Frame", ScreenGui)
+CreditHUD.Name = "CreditHUD"
+CreditHUD.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+CreditHUD.Size = UDim2.new(0, 200, 0, 38)
+CreditHUD.Position = UDim2.new(0.5, 0, 0, 12)
+CreditHUD.AnchorPoint = Vector2.new(0.5, 0)
+CreditHUD.ClipsDescendants = true
+Instance.new("UICorner", CreditHUD).CornerRadius = UDim.new(1, 0)
+
+local CreditStroke = Instance.new("UIStroke", CreditHUD)
+CreditStroke.Color = Color3.fromRGB(150, 150, 150)
+CreditStroke.Thickness = 1.5
+
+local ProfileImg = Instance.new("ImageLabel", CreditHUD)
+ProfileImg.BackgroundTransparency = 1
+ProfileImg.Position = UDim2.new(0, 6, 0.5, 0)
+ProfileImg.AnchorPoint = Vector2.new(0, 0.5)
+ProfileImg.Size = UDim2.new(0, 28, 0, 28)
+Instance.new("UICorner", ProfileImg).CornerRadius = UDim.new(1, 0)
+
+task.spawn(function()
+    local content, isReady = Players:GetUserThumbnailAsync(OWNER_USER_ID, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+    if isReady and ProfileImg and ProfileImg.Parent then
+        ProfileImg.Image = content
+    end
+end)
+
+local CreditText = Instance.new("TextLabel", CreditHUD)
+CreditText.BackgroundTransparency = 1
+CreditText.Position = UDim2.new(0, 38, 0, 0)
+CreditText.Size = UDim2.new(1, -42, 1, 0)
+CreditText.Font = Enum.Font.GothamBold
+CreditText.Text = "VersMandex Gui"
+CreditText.TextSize = 11
+CreditText.TextColor3 = Color3.fromRGB(255, 255, 255)
+CreditText.TextXAlignment = Enum.TextXAlignment.Center
+
+task.spawn(function()
+    while CreditHUD and CreditHUD.Parent do
+        TweenService:Create(CreditHUD, TweenInfo.new(0.8), {BackgroundColor3 = Color3.fromRGB(15, 15, 20)}):Play()
+        TweenService:Create(CreditText, TweenInfo.new(0.8), {TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+        TweenService:Create(CreditStroke, TweenInfo.new(0.8), {Color = Color3.fromRGB(200, 200, 200)}):Play()
+        task.wait(1.5)
+        if not (CreditHUD and CreditHUD.Parent) then break end
+        TweenService:Create(CreditHUD, TweenInfo.new(0.8), {BackgroundColor3 = Color3.fromRGB(240, 240, 245)}):Play()
+        TweenService:Create(CreditText, TweenInfo.new(0.8), {TextColor3 = Color3.fromRGB(0, 0, 0)}):Play()
+        TweenService:Create(CreditStroke, TweenInfo.new(0.8), {Color = Color3.fromRGB(50, 50, 50)}):Play()
+        task.wait(1.5)
+    end
+end)
+
+----------------------------------------------------
+-- SYSTEM COOLDOWN SAVER
+----------------------------------------------------
+local COOLDOWN_FILE = "versmandex_cooldown.txt"
+local genv = (getgenv and getgenv()) or _G
+
+local function getSavedCooldown()
+    if readfile and isfile and isfile(COOLDOWN_FILE) then
+        local content = readfile(COOLDOWN_FILE)
+        return tonumber(content) or 0
+    end
+    return genv.VersmandexLastRequestTime or 0
+end
+
+local function setSavedCooldown(timestamp)
+    genv.VersmandexLastRequestTime = timestamp
+    if writefile then
+        pcall(function() writefile(COOLDOWN_FILE, tostring(timestamp)) end)
+    end
+end
+
+----------------------------------------------------
+-- MAIN GUI BUILDING
+----------------------------------------------------
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainFrame"
+MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+MainFrame.Size = UDim2.new(0, 320, 0, 310)
+MainFrame.Position = UDim2.new(0.5, 0, 1.2, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.ClipsDescendants = true
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+local UIStroke = Instance.new("UIStroke", MainFrame)
+UIStroke.Color = Color3.fromRGB(150, 150, 150)
+UIStroke.Thickness = 1.5
+
+local MainGradient = Instance.new("UIGradient", MainFrame)
+MainGradient.Rotation = 90
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 15, 20)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(240, 240, 245)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 15, 20))
+})
+
+task.spawn(function()
+    local pos = 0
+    while MainFrame and MainFrame.Parent do
+        pos = pos + 0.02
+        if pos >= 1 then pos = 0 end
+        MainGradient.Offset = Vector2.new(0, pos)
+        task.wait(0.03)
+    end
+end)
+
+TweenService:Create(MainFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+    Position = UDim2.new(0.5, 0, 0.5, 0)
+}):Play()
+
+-- Header
+local Header = Instance.new("Frame", MainFrame)
+Header.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+Header.Size = UDim2.new(1, 0, 0, 34)
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
+
+local TitleLabel = Instance.new("TextLabel", Header)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Position = UDim2.new(0.04, 0, 0, 0)
+TitleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Text = "VERSMANDEX GUI"
+TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+TitleLabel.TextSize = 11
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+-- TOMBOL CLOSE (X)
+local CloseBtn = Instance.new("TextButton", Header)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseBtn.Position = UDim2.new(0.88, 0, 0.15, 0)
+CloseBtn.Size = UDim2.new(0, 22, 0, 22)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.Text = "x"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseBtn.TextSize = 13
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+
+CloseBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    local tweenOut = TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+        Position = UDim2.new(0.5, 0, 1.2, 0)
+    })
+    tweenOut:Play()
+    tweenOut.Completed:Wait()
+    ScreenGui:Destroy()
+end)
+
+-- TOMBOL MINIMIZE / OPEN (-)
+local MinimizeBtn = Instance.new("TextButton", Header)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 75)
+MinimizeBtn.Position = UDim2.new(0.73, 0, 0.15, 0)
+MinimizeBtn.Size = UDim2.new(0, 22, 0, 22)
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Text = "-"
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.TextSize = 14
+Instance.new("UICorner", MinimizeBtn).CornerRadius = UDim.new(0, 6)
+
+local isMinimized = false
+local ContentContainer = Instance.new("Frame", MainFrame)
+ContentContainer.BackgroundTransparency = 1
+ContentContainer.Position = UDim2.new(0, 0, 0, 36)
+ContentContainer.Size = UDim2.new(1, 0, 1, -36)
+ContentContainer.ClipsDescendants = true
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    isMinimized = not isMinimized
+    if isMinimized then
+        MinimizeBtn.Text = "+"
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 34)
+        }):Play()
+        ContentContainer.Visible = false
+    else
+        MinimizeBtn.Text = "-"
+        ContentContainer.Visible = true
+        TweenService:Create(MainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 320, 0, 310)
+        }):Play()
+    end
+end)
+
+-- TAB NAVIGATION BAR
+local TabBar = Instance.new("Frame", ContentContainer)
+TabBar.BackgroundTransparency = 1
+TabBar.Position = UDim2.new(0.03, 0, 0.02, 0)
+TabBar.Size = UDim2.new(0.94, 0, 0, 28)
+
+local Tab1Btn = Instance.new("TextButton", TabBar)
+Tab1Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+Tab1Btn.Size = UDim2.new(0.48, 0, 1, 0)
+Tab1Btn.Font = Enum.Font.GothamBold
+Tab1Btn.Text = "Feature 1"
+Tab1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+Tab1Btn.TextSize = 10
+Instance.new("UICorner", Tab1Btn).CornerRadius = UDim.new(0, 6)
+
+local Tab2Btn = Instance.new("TextButton", TabBar)
+Tab2Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Tab2Btn.Position = UDim2.new(0.52, 0, 0, 0)
+Tab2Btn.Size = UDim2.new(0.48, 0, 1, 0)
+Tab2Btn.Font = Enum.Font.GothamBold
+Tab2Btn.Text = "Feature 2"
+Tab2Btn.TextColor3 = Color3.fromRGB(170, 170, 180)
+Tab2Btn.TextSize = 10
+Instance.new("UICorner", Tab2Btn).CornerRadius = UDim.new(0, 6)
+
+-- PAGES CONTAINER
+local Page1 = Instance.new("Frame", ContentContainer) Page1.BackgroundTransparency = 1 Page1.Position = UDim2.new(0.03, 0, 0.15, 0) Page1.Size = UDim2.new(0.94, 0, 0.82, 0) Page1.Visible = true
+local Page2 = Instance.new("Frame", ContentContainer) Page2.BackgroundTransparency = 1 Page2.Position = UDim2.new(0.03, 0, 0.15, 0) Page2.Size = UDim2.new(0.94, 0, 0.82, 0) Page2.Visible = false
+
+Tab1Btn.MouseButton1Click:Connect(function()
+    playClickSound() Page1.Visible, Page2.Visible = true, false
+    Tab1Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60) Tab1Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Tab2Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) Tab2Btn.TextColor3 = Color3.fromRGB(170, 170, 180)
+end)
+
+Tab2Btn.MouseButton1Click:Connect(function()
+    playClickSound() Page1.Visible, Page2.Visible = false, true
+    Tab2Btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60) Tab2Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Tab1Btn.BackgroundColor3 = Color3.fromRGB(25, 25, 30) Tab1Btn.TextColor3 = Color3.fromRGB(170, 170, 180)
+end)
+
+----------------------------------------------------
+-- PAGE 1: FEATURE 1 (SCAN & SERVER HOP)
+----------------------------------------------------
+local AutoHopBtn1 = Instance.new("TextButton", Page1)
+AutoHopBtn1.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+AutoHopBtn1.Size = UDim2.new(1, 0, 0, 28)
+AutoHopBtn1.Font = Enum.Font.GothamBold
+AutoHopBtn1.Text = "Auto Hop: OFF"
+AutoHopBtn1.TextColor3 = Color3.fromRGB(220, 220, 220)
+AutoHopBtn1.TextSize = 10
+Instance.new("UICorner", AutoHopBtn1).CornerRadius = UDim.new(0, 6)
+
+local autoHopEnabled1 = false
+AutoHopBtn1.MouseButton1Click:Connect(function()
+    playClickSound()
+    autoHopEnabled1 = not autoHopEnabled1
+    if autoHopEnabled1 then
+        AutoHopBtn1.Text = "Auto Hop: ON"
+        AutoHopBtn1.BackgroundColor3 = Color3.fromRGB(0, 150, 75)
+    else
+        AutoHopBtn1.Text = "Auto Hop: OFF"
+        AutoHopBtn1.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+    end
+end)
+
+local ScanBtn1 = Instance.new("TextButton", Page1)
+ScanBtn1.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+ScanBtn1.Position = UDim2.new(0, 0, 0, 32)
+ScanBtn1.Size = UDim2.new(0.58, 0, 0, 26)
+ScanBtn1.Font = Enum.Font.GothamBold
+ScanBtn1.Text = "Scan All Servers"
+ScanBtn1.TextColor3 = Color3.fromRGB(255, 255, 255)
+ScanBtn1.TextSize = 10
+Instance.new("UICorner", ScanBtn1).CornerRadius = UDim.new(0, 6)
+
+local StatusLabel1 = Instance.new("TextLabel", Page1)
+StatusLabel1.BackgroundTransparency = 1
+StatusLabel1.Position = UDim2.new(0.60, 0, 0, 32)
+StatusLabel1.Size = UDim2.new(0.40, 0, 0, 26)
+StatusLabel1.Font = Enum.Font.GothamMedium
+StatusLabel1.Text = "Ready"
+StatusLabel1.TextColor3 = Color3.fromRGB(170, 170, 190)
+StatusLabel1.TextSize = 10
+
+local ListFrame1 = Instance.new("Frame", Page1)
+ListFrame1.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+ListFrame1.Position = UDim2.new(0, 0, 0, 62)
+ListFrame1.Size = UDim2.new(1, 0, 0, 150)
+Instance.new("UICorner", ListFrame1).CornerRadius = UDim.new(0, 6)
+
+local Scroll1 = Instance.new("ScrollingFrame", ListFrame1)
+Scroll1.BackgroundTransparency = 1
+Scroll1.Position = UDim2.new(0.02, 0, 0.03, 0)
+Scroll1.Size = UDim2.new(0.96, 0, 0.94, 0)
+Scroll1.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scroll1.ScrollBarThickness = 3
+Instance.new("UIListLayout", Scroll1).Padding = UDim.new(0, 4)
+
+ScanBtn1.MouseButton1Click:Connect(function()
+    playClickSound()
+    for _, child in ipairs(Scroll1:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
+    ScanBtn1.Text = "Scanning..."
+    StatusLabel1.Text = "Loading..."
+    StatusLabel1.TextColor3 = Color3.fromRGB(255, 200, 50)
+    
+    local foundServers = {}
+    local cursor = ""
+    for i = 1, 2 do
+        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+        if cursor ~= "" then url = url .. "&cursor=" .. cursor end
+        local success, result = pcall(function() return HttpService:JSONDecode(game:HttpGet(url)) end)
+        if success and result and result.data then
+            for _, server in ipairs(result.data) do
+                if server.playing and server.maxPlayers and server.id ~= game.JobId and server.playing <= 5 then
+                    table.insert(foundServers, server)
+                end
+            end
+            cursor = result.nextPageCursor or ""
+            if cursor == "" then break end
+        else
+            break
+        end
+    end
+    
+    if #foundServers > 0 then
+        for idx, server in ipairs(foundServers) do
+            local ServerRow = Instance.new("Frame", Scroll1)
+            ServerRow.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            ServerRow.Size = UDim2.new(1, 0, 0, 30)
+            Instance.new("UICorner", ServerRow).CornerRadius = UDim.new(0, 4)
+            
+            local InfoText = Instance.new("TextLabel", ServerRow)
+            InfoText.BackgroundTransparency = 1
+            InfoText.Position = UDim2.new(0.03, 0, 0, 0)
+            InfoText.Size = UDim2.new(0.65, 0, 1, 0)
+            InfoText.Font = Enum.Font.GothamMedium
+            InfoText.Text = string.format("Players: %d/%d | ID: %s", server.playing, server.maxPlayers, string.sub(server.id, 1, 6))
+            InfoText.TextColor3 = Color3.fromRGB(220, 220, 220)
+            InfoText.TextSize = 10
+            InfoText.TextXAlignment = Enum.TextXAlignment.Left
+            
+            local JoinBtn = Instance.new("TextButton", ServerRow)
+            JoinBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 75)
+            JoinBtn.Position = UDim2.new(0.7, 0, 0.15, 0)
+            JoinBtn.Size = UDim2.new(0.26, 0, 0.7, 0)
+            JoinBtn.Font = Enum.Font.GothamBold
+            JoinBtn.Text = "JOIN"
+            JoinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            JoinBtn.TextSize = 9
+            Instance.new("UICorner", JoinBtn).CornerRadius = UDim.new(0, 4)
+            
+            local targetId = server.id
+            JoinBtn.MouseButton1Click:Connect(function()
+                playClickSound()
+                JoinBtn.Text = "..."
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, targetId, LocalPlayer)
+            end)
+        end
+        Scroll1.CanvasSize = UDim2.new(0, 0, 0, #foundServers * 34)
+        ScanBtn1.Text = "Scan All Servers"
+        StatusLabel1.Text = "Found: " .. #foundServers
+        StatusLabel1.TextColor3 = Color3.fromRGB(0, 220, 120)
+    else
+        ScanBtn1.Text = "Scan All Servers"
+        StatusLabel1.Text = "No found"
+        StatusLabel1.TextColor3 = Color3.fromRGB(255, 80, 80)
+    end
+end)
+
+----------------------------------------------------
+-- PAGE 2: FEATURE 2 (KEY SYSTEM & DISCORD)
+----------------------------------------------------
+local KeyFrame = Instance.new("Frame", Page2)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+KeyFrame.Size = UDim2.new(1, 0, 1, 0)
+Instance.new("UICorner", KeyFrame).CornerRadius = UDim.new(0, 8)
+
+local KeyTitle = Instance.new("TextLabel", KeyFrame)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Position = UDim2.new(0, 0, 0.02, 0)
+KeyTitle.Size = UDim2.new(1, 0, 0, 16)
+KeyTitle.Font = Enum.Font.GothamBold
+KeyTitle.Text = "FEATURE 2 ACCESS KEY"
+KeyTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
+KeyTitle.TextSize = 10
+
+local KeyInput = Instance.new("TextBox", KeyFrame)
+KeyInput.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+KeyInput.Position = UDim2.new(0.08, 0, 0.12, 0)
+KeyInput.Size = UDim2.new(0.84, 0, 0, 28)
+KeyInput.Font = Enum.Font.Gotham
+KeyInput.PlaceholderText = "Enter Key Here..."
+KeyInput.Text = ""
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.TextSize = 10
+Instance.new("UICorner", KeyInput).CornerRadius = UDim.new(0, 6)
+
+local SubmitKeyBtn = Instance.new("TextButton", KeyFrame)
+SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+SubmitKeyBtn.Position = UDim2.new(0.08, 0, 0.28, 0)
+SubmitKeyBtn.Size = UDim2.new(0.84, 0, 0, 28)
+SubmitKeyBtn.Font = Enum.Font.GothamBold
+SubmitKeyBtn.Text = "Unlock Access"
+SubmitKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubmitKeyBtn.TextSize = 10
+Instance.new("UICorner", SubmitKeyBtn).CornerRadius = UDim.new(0, 6)
+
+local KeyStatus = Instance.new("TextLabel", KeyFrame)
+KeyStatus.BackgroundTransparency = 1
+KeyStatus.Position = UDim2.new(0, 0, 0.43, 0)
+KeyStatus.Size = UDim2.new(1, 0, 0, 16)
+KeyStatus.Font = Enum.Font.Gotham
+KeyStatus.Text = "Status: Locked"
+KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+KeyStatus.TextSize = 9
+
+local CopyDiscordBtn = Instance.new("TextButton", KeyFrame)
+CopyDiscordBtn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+CopyDiscordBtn.Position = UDim2.new(0.08, 0, 0.54, 0)
+CopyDiscordBtn.Size = UDim2.new(0.84, 0, 0, 28)
+CopyDiscordBtn.Font = Enum.Font.GothamBold
+CopyDiscordBtn.Text = "Copy Discord Link"
+CopyDiscordBtn.TextColor3 = Color3.fromRGB(20, 20, 25)
+CopyDiscordBtn.TextSize = 10
+Instance.new("UICorner", CopyDiscordBtn).CornerRadius = UDim.new(0, 6)
+
+CopyDiscordBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    local setClipboardFunc = setclipboard or toclipboard or (syn and syn.write_clipboard)
+    if setClipboardFunc then
+        pcall(function() setClipboardFunc(DISCORD_LINK) end)
+        CopyDiscordBtn.Text = "Copied to Clipboard!"
+    else
+        CopyDiscordBtn.Text = "Clipboard Not Supported"
+    end
+    task.wait(1.5)
+    CopyDiscordBtn.Text = "Copy Discord Link"
+end)
+
+local GenKeyBtn = Instance.new("TextButton", KeyFrame)
+GenKeyBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+GenKeyBtn.Position = UDim2.new(0.08, 0, 0.70, 0)
+GenKeyBtn.Size = UDim2.new(0.84, 0, 0, 28)
+GenKeyBtn.Font = Enum.Font.GothamBold
+GenKeyBtn.Text = "Generate Key in Discord"
+GenKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+GenKeyBtn.TextSize = 10
+Instance.new("UICorner", GenKeyBtn).CornerRadius = UDim.new(0, 6)
+
+local Feature2Content = Instance.new("Frame", Page2)
+Feature2Content.BackgroundTransparency = 1
+Feature2Content.Size = UDim2.new(1, 0, 1, 0)
+Feature2Content.Visible = false
+
+local Title2 = Instance.new("TextLabel", Feature2Content)
+Title2.BackgroundTransparency = 1
+Title2.Size = UDim2.new(1, 0, 0, 18)
+Title2.Font = Enum.Font.GothamBold
+Title2.Text = "Auto Find 1-Player Server Only"
+Title2.TextColor3 = Color3.fromRGB(220, 220, 220)
+Title2.TextSize = 10
+
+local StatusLabel2 = Instance.new("TextLabel", Feature2Content)
+StatusLabel2.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+StatusLabel2.Position = UDim2.new(0, 0, 0, 22)
+StatusLabel2.Size = UDim2.new(1, 0, 0, 36)
+StatusLabel2.Font = Enum.Font.GothamBold
+StatusLabel2.Text = "Status: Idle"
+StatusLabel2.TextColor3 = Color3.fromRGB(180, 180, 190)
+StatusLabel2.TextSize = 10
+Instance.new("UICorner", StatusLabel2).CornerRadius = UDim.new(0, 6)
+
+local StartBtn2 = Instance.new("TextButton", Feature2Content)
+StartBtn2.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+StartBtn2.Position = UDim2.new(0, 0, 0, 64)
+StartBtn2.Size = UDim2.new(1, 0, 0, 32)
+StartBtn2.Font = Enum.Font.GothamBold
+StartBtn2.Text = "Start Searching (1 Player)"
+StartBtn2.TextColor3 = Color3.fromRGB(255, 255, 255)
+StartBtn2.TextSize = 10
+Instance.new("UICorner", StartBtn2).CornerRadius = UDim.new(0, 6)
+
+SubmitKeyBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    if KeyInput.Text == CORRECT_KEY then
+        isFeature2Unlocked = true
+        KeyStatus.Text = "Key Correct! Unlocking..."
+        KeyStatus.TextColor3 = Color3.fromRGB(0, 220, 120)
+        Tab2Btn.Text = "Feature 2"
+        task.wait(0.8)
+        KeyFrame.Visible = false
+        Feature2Content.Visible = true
+    else
+        KeyStatus.Text = "Invalid Key! Try Again."
+        KeyStatus.TextColor3 = Color3.fromRGB(255, 80, 80)
+    end
+end)
+
+local searchingActive2 = false
+StartBtn2.MouseButton1Click:Connect(function()
+    playClickSound()
+    searchingActive2 = not searchingActive2
+    if searchingActive2 then
+        StartBtn2.Text = "Stop Searching"
+        StartBtn2.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        task.spawn(function()
+            while searchingActive2 do
+                StatusLabel2.Text = "Searching..."
+                task.wait(0.8)
+                local success, result = pcall(function()
+                    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+                    return HttpService:JSONDecode(game:HttpGet(url))
+                end)
+                local foundTarget = false
+                if success and result and result.data then
+                    for _, srv in ipairs(result.data) do
+                        if srv.playing and srv.maxPlayers and srv.id ~= game.JobId and srv.playing == 1 then
+                            foundTarget = true
+                            StatusLabel2.Text = "Found 1 Player Server! Joining..."
+                            task.wait(1)
+                            TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
+                            break
+                        end
+                    end
+                end
+                if not foundTarget and searchingActive2 then
+                    StatusLabel2.Text = "Retrying (1 Player)..."
+                    task.wait(2.5)
+                end
+            end
+        end)
+    else
+        StartBtn2.Text = "Start Searching (1 Player)"
+        StartBtn2.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+        StatusLabel2.Text = "Status: Idle"
+    end
+end)
+
+----------------------------------------------------
+-- GUI KEDUA: REQUEST POPUP WINDOW
+----------------------------------------------------
+local RequestFrame = Instance.new("Frame", ScreenGui)
+RequestFrame.Name = "RequestFrame"
+RequestFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
+RequestFrame.Size = UDim2.new(0, 270, 0, 220)
+RequestFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+RequestFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+RequestFrame.Active = true
+RequestFrame.Draggable = true
+RequestFrame.Visible = false
+RequestFrame.ClipsDescendants = true
+Instance.new("UICorner", RequestFrame).CornerRadius = UDim.new(0, 10)
+
+local ReqHeader = Instance.new("Frame", RequestFrame)
+ReqHeader.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
+ReqHeader.Size = UDim2.new(1, 0, 0, 30)
+Instance.new("UICorner", ReqHeader).CornerRadius = UDim.new(0, 10)
+
+local ReqCloseBtn = Instance.new("TextButton", ReqHeader)
+ReqCloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ReqCloseBtn.Position = UDim2.new(0.86, 0, 0.15, 0)
+ReqCloseBtn.Size = UDim2.new(0, 20, 0, 20)
+ReqCloseBtn.Font = Enum.Font.GothamBold
+ReqCloseBtn.Text = "x"
+ReqCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ReqCloseBtn.TextSize = 11
+Instance.new("UICorner", ReqCloseBtn).CornerRadius = UDim.new(0, 5)
+
+ReqCloseBtn.MouseButton1Click:Connect(function()
+    playClickSound() RequestFrame.Visible = false
+end)
+
+local ReqBox = Instance.new("TextBox", RequestFrame)
+ReqBox.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+ReqBox.Position = UDim2.new(0.06, 0, 0.18, 0)
+ReqBox.Size = UDim2.new(0.88, 0, 0, 95)
+ReqBox.Font = Enum.Font.Gotham
+ReqBox.PlaceholderText = "Write your request here..."
+ReqBox.Text = ""
+ReqBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ReqBox.TextSize = 10
+ReqBox.TextXAlignment = Enum.TextXAlignment.Left
+ReqBox.TextYAlignment = Enum.TextYAlignment.Top
+ReqBox.ClearTextOnFocus = false
+ReqBox.MultiLine = true
+Instance.new("UICorner", ReqBox).CornerRadius = UDim.new(0, 6)
+
+local SendReqBtn = Instance.new("TextButton", RequestFrame)
+SendReqBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+SendReqBtn.Position = UDim2.new(0.06, 0, 0.72, 0)
+SendReqBtn.Size = UDim2.new(0.88, 0, 0, 32)
+SendReqBtn.Font = Enum.Font.GothamBold
+SendReqBtn.Text = "Send Request"
+SendReqBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendReqBtn.TextSize = 10
+Instance.new("UICorner", SendReqBtn).CornerRadius = UDim.new(0, 6)
+
+GenKeyBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    GenKeyBtn.Text = "Opening Request..."
+    task.spawn(function()
+        local payload = {
+            ["username"] = "Versmandex Key Generator Tracker",
+            ["embeds"] = {
+                {
+                    ["title"] = "Key Request Received",
+                    ["color"] = 65280,
+                    ["fields"] = {
+                        {["name"] = "User Details", ["value"] = string.format("Username: %s\nUser ID: %d", LocalPlayer.Name, LocalPlayer.UserId), ["inline"] = false},
+                        {["name"] = "Requested Key", ["value"] = string.format("Key Required: **%s**", CORRECT_KEY), ["inline"] = false}
+                    }
+                }
+            }
+        }
+        pcall(function()
+            local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+            if requestFunc then
+                requestFunc({
+                    Url = KEY_WEBHOOK,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(payload)
+                })
+            end
+        end)
+    end)
+    RequestFrame.Visible = true
+    task.wait(1)
+    GenKeyBtn.Text = "Generate Key in Discord"
+end)
+
+SendReqBtn.MouseButton1Click:Connect(function()
+    playClickSound()
+    local lastTime = getSavedCooldown()
+    local currentTime = os.time()
+    local timePassed = currentTime - lastTime
+    
+    if timePassed < COOLDOWN_TIME then
+        local remaining = COOLDOWN_TIME - timePassed
+        local minutes = math.floor(remaining / 60)
+        local seconds = remaining % 60
+        SendReqBtn.Text = string.format("Cooldown: %dm %ds", minutes, seconds)
+        task.wait(2)
+        SendReqBtn.Text = "Send Request"
+        return
+    end
+    
+    local userMessage = ReqBox.Text
+    if userMessage == "" or string.gsub(userMessage, " ", "") == "" then
+        SendReqBtn.Text = "Write a message first!"
+        task.wait(1.5)
+        SendReqBtn.Text = "Send Request"
+        return
+    end
+    
+    SendReqBtn.Text = "Sending..."
+    task.spawn(function()
+        local payload = {
+            ["username"] = "Versmandex User Request",
+            ["embeds"] = {
+                {
+                    ["title"] = "New Message / Request Received",
+                    ["color"] = 10181046,
+                    ["fields"] = {
+                        {["name"] = "User Details", ["value"] = string.format("Username: %s\nUser ID: %d", LocalPlayer.Name, LocalPlayer.UserId), ["inline"] = false},
+                        {["name"] = "User Message", ["value"] = userMessage, ["inline"] = false}
+                    }
+                }
+            }
+        }
+        pcall(function()
+            local requestFunc = (syn and syn.request) or (http and http.request) or http_request or request
+            if requestFunc then
+                requestFunc({
+                    Url = REQUEST_WEBHOOK,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = HttpService:JSONEncode(payload)
+                })
+            end
+        end)
+    end)
+    
+    setSavedCooldown(os.time())
+    ReqBox.Text = ""
+    SendReqBtn.Text = "Sent Successfully!"
+    task.wait(2)
+    SendReqBtn.Text = "Send Request"
+    RequestFrame.Visible = false
+end)
+
+-- Background Auto-Hop System untuk Feature 1
+task.spawn(function()
+    while true do
+        task.wait(3)
+        if autoHopEnabled1 then
+            if #Players:GetPlayers() >= 4 then
+                local success, result = pcall(function()
+                    local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
+                    return HttpService:JSONDecode(game:HttpGet(url))
+                end)
+                if success and result and result.data then
+                    for _, srv in ipairs(result.data) do
+                        if srv.playing and srv.maxPlayers and srv.id ~= game.JobId and srv.playing <= 2 then
+                            TeleportService:TeleportToPlaceInstance(game.PlaceId, srv.id, LocalPlayer)
+                            break
+                        end
+                    end
+                end
+                break
+            end
+        end
+    end
+end)
